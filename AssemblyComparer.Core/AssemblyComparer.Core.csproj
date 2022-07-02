@@ -9,11 +9,14 @@
 	  <PackageProjectUrl>https://github.com/AlmightyLks/AssemblyComparer</PackageProjectUrl>
 	  <PackageReadmeFile>README.md</PackageReadmeFile>
 	  <RepositoryUrl>https://github.com/AlmightyLks/AssemblyComparer</RepositoryUrl>
-	  <PackageTags>Reflection;dnlib;assembly;assemblies;difference;comparer;comparator;dotnet;managed;</PackageTags>
+	  <PackageTags>reflection;dnlib;assembly;assemblies;difference;comparer;comparator;dotnet;managed;</PackageTags>
 	  <AssemblyVersion>1.0.0.0</AssemblyVersion>
 	  <FileVersion>1.0.0.0</FileVersion>
 	  <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
 	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+	  <PackageId>AlmightyLks.AssemblyComparer</PackageId>
+	  <Authors>AlmightyLks</Authors>
+	  <Product>AssemblyComparer</Product>
   </PropertyGroup>
 
   <ItemGroup>
