@@ -11,52 +11,6 @@ using System.Text;
 
 namespace AssemblyComparer.Core
 {
-    public enum DifferenceType
-    {
-        Identical,
-        Created,
-        Removed,
-        Modified
-    }
-    public enum SubjectType
-    {
-        None,
-        RuntimeVersion,
-        AssemblyReference,
-        Type,
-        Field,
-        Property,
-        Attribute,
-        AttributeValue,
-        Method
-    }
-    public class Difference
-    {
-        public DifferenceType Type { get; set; }
-        public SubjectType Subject { get; set; }
-        public string OldValue { get; set; }
-        public string NewValue { get; set; }
-
-        public Difference(DifferenceType type = default, SubjectType subject = default, string oldValue = default, string newValue = default)
-        {
-            Type = type;
-            Subject = subject;
-            OldValue = oldValue;
-            NewValue = newValue;
-        }
-    }
-    public class Difference<T> : Difference
-    {
-        public T OldObject { get; set; }
-        public T NewObject { get; set; }
-
-        public Difference(T oldObject = default, T newObject = default, DifferenceType type = default, SubjectType subject = default, string oldValue = default, string newValue = default)
-            : base(type, subject, oldValue, newValue)
-        {
-            OldObject = oldObject;
-            NewObject = newObject;
-        }
-    }
 
     public class Comparer
     {
@@ -179,6 +133,17 @@ namespace AssemblyComparer.Core
             }
             void CheckModule()
             {
+                if (oldModule.Name.String != newModule.Name.String)
+                {
+                    _differences.Add(new Difference<ModuleDef>(
+                        oldModule,
+                        newModule,
+                        DifferenceType.Modified,
+                        SubjectType.AssemblyName,
+                        oldModule.Name.String,
+                        newModule.Name.String
+                        ));
+                }
                 if (oldModule.RuntimeVersion != newModule.RuntimeVersion)
                 {
                     _differences.Add(new Difference<ModuleDef>(
