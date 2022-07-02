@@ -1,5 +1,6 @@
 ﻿using dnlib;
 using dnlib.DotNet;
+using dnlib.DotNet.Emit;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,23 +12,24 @@ using System.Text;
 
 namespace AssemblyComparer.Core
 {
-
-    public class Comparer
+    public class Comparator
     {
         private readonly List<Difference> _differences;
 
-        public Comparer()
+        public Comparator()
         {
             _differences = new List<Difference>();
         }
 
-        public IEnumerable<Difference> Compare(Stream oldAssembly, Stream newAssembly)
+        public Difference[] Compare(Stream oldAssembly, Stream newAssembly)
         {
             var oldModule = ModuleDefMD.Load(oldAssembly);
             var newModule = ModuleDefMD.Load(newAssembly);
             CompareModules(oldModule, newModule);
 
-            return _differences.ToList();
+            var result = _differences.ToArray();
+            _differences.Clear();
+            return result;
         }
 
         private void CompareModules(ModuleDefMD oldModule, ModuleDefMD newModule)
@@ -38,14 +40,14 @@ namespace AssemblyComparer.Core
 
             void CheckTypes()
             {
-                var oldTypes = oldModule.Types.ToList();
-                var newTypes = newModule.Types.ToList();
+                var oldTypes = oldModule.Types;
+                var newTypes = newModule.Types;
 
-                var createdTypes = newTypes.ExceptBy(oldTypes.Select(_ => _.Name), _ => _.Name).ToList();
-                var removedTypes = oldTypes.ExceptBy(newTypes.Select(_ => _.Name), _ => _.Name).ToList();
+                var createdTypes = newTypes.ExceptBy(oldTypes.Select(_ => _.Name), _ => _.Name);
+                var removedTypes = oldTypes.ExceptBy(newTypes.Select(_ => _.Name), _ => _.Name);
 
-                var commonNewTypes = newTypes.IntersectBy(oldTypes.Select(_ => _.Name), _ => _.Name).ToList();
-                var commonOldTypes = oldTypes.IntersectBy(newTypes.Select(_ => _.Name), _ => _.Name).ToList();
+                var commonNewTypes = newTypes.IntersectBy(oldTypes.Select(_ => _.Name), _ => _.Name);
+                var commonOldTypes = oldTypes.IntersectBy(newTypes.Select(_ => _.Name), _ => _.Name);
 
                 foreach (var removedType in removedTypes)
                 {
@@ -54,7 +56,7 @@ namespace AssemblyComparer.Core
                         null,
                         DifferenceType.Removed,
                         SubjectType.Type,
-                        removedType.FullName.ToString(),
+                        BuildTypeDef(removedType),
                         null
                         ));
                 }
@@ -66,7 +68,7 @@ namespace AssemblyComparer.Core
                         DifferenceType.Created,
                         SubjectType.Type,
                         null,
-                        createdType.FullName.ToString()
+                        BuildTypeDef(createdType)
                         ));
                 }
 
@@ -80,14 +82,14 @@ namespace AssemblyComparer.Core
             }
             void CheckModuleAssemblyReferences()
             {
-                var oldReferences = oldModule.GetAssemblyRefs().ToList();
-                var newReferences = newModule.GetAssemblyRefs().ToList();
+                var oldReferences = oldModule.GetAssemblyRefs();
+                var newReferences = newModule.GetAssemblyRefs();
 
-                var createdReferences = newReferences.ExceptBy(oldReferences.Select(_ => _.FullName), _ => _.FullName).ToList();
-                var removedReferences = oldReferences.ExceptBy(newReferences.Select(_ => _.FullName), _ => _.FullName).ToList();
+                var createdReferences = newReferences.ExceptBy(oldReferences.Select(_ => _.FullName), _ => _.FullName);
+                var removedReferences = oldReferences.ExceptBy(newReferences.Select(_ => _.FullName), _ => _.FullName);
 
-                var commonNewReferences = newReferences.IntersectBy(oldReferences.Select(_ => _.FullName), _ => _.FullName).ToList();
-                var commonOldReferences = oldReferences.IntersectBy(newReferences.Select(_ => _.FullName), _ => _.FullName).ToList();
+                var commonNewReferences = newReferences.IntersectBy(oldReferences.Select(_ => _.FullName), _ => _.FullName);
+                var commonOldReferences = oldReferences.IntersectBy(newReferences.Select(_ => _.FullName), _ => _.FullName);
 
                 foreach (var removedReference in removedReferences)
                 {
@@ -169,18 +171,65 @@ namespace AssemblyComparer.Core
             // Methods
             CompareMethods();
 
+            // Properties
+            CompareProperties();
+
             // Add Attribute comparer
 
+            void CompareProperties()
+            {
+                var oldProperties = oldType.Properties;
+                var newProperties = newType.Properties;
+
+                // PropertyDef#FullName includes whole method definition, so it will sort out parameter changes and alike already
+                var createdProperties = newProperties.ExceptBy(oldProperties.Select(_ => _.FullName), _ => _.FullName);
+                var removedProperties = oldProperties.ExceptBy(newProperties.Select(_ => _.FullName), _ => _.FullName);
+
+                var commonNewProperties = newProperties.IntersectBy(oldProperties.Select(_ => _.FullName), _ => _.FullName);
+                var commonOldProperties = oldProperties.IntersectBy(newProperties.Select(_ => _.FullName), _ => _.FullName);
+
+                foreach (var newProperty in createdProperties)
+                {
+                    _differences.Add(new Difference<PropertyDef>(
+                        null,
+                        newProperty,
+                        DifferenceType.Created,
+                        SubjectType.Method,
+                        null,
+                        newProperty.FullName
+                        )); 
+                }
+                foreach (var removedMethod in removedProperties)
+                {
+                    _differences.Add(new Difference<PropertyDef>(
+                        removedMethod,
+                        null,
+                        DifferenceType.Removed,
+                        SubjectType.Method,
+                        removedMethod.FullName,
+                        null
+                        ));
+                }
+
+                // Check common fields for modified versions
+                foreach (var fieldPair in commonNewProperties.Zip(commonOldProperties, Tuple.Create))
+                {
+                    // Item1 new
+                    // Item2 old
+                    CompareTwoProperties(fieldPair.Item2, fieldPair.Item1);
+                }
+            }
             void CompareMethods()
             {
-                var oldMethods = oldType.Methods.ToList();
-                var newMethods = newType.Methods.ToList();
+                var oldMethods = oldType.Methods;
+                var newMethods = newType.Methods;
 
-                var createdMethods = newMethods.ExceptBy(oldMethods.Select(_ => _.FullName), _ => _.FullName).ToList();
-                var removedMethods = oldMethods.ExceptBy(newMethods.Select(_ => _.FullName), _ => _.FullName).ToList();
+                // MethodDef#FullName includes whole method definition, so it will sort out parameter changes and alike already
+                var createdMethods = newMethods.ExceptBy(oldMethods.Select(_ => _.FullName), _ => _.FullName);
+                var removedMethods = oldMethods.ExceptBy(newMethods.Select(_ => _.FullName), _ => _.FullName);
 
-                var commonNewMethods = newMethods.IntersectBy(oldMethods.Select(_ => _.FullName), _ => _.FullName).ToList();
-                var commonOldMethods = oldMethods.IntersectBy(newMethods.Select(_ => _.FullName), _ => _.FullName).ToList();
+                var commonNewMethods = newMethods.IntersectBy(oldMethods.Select(_ => _.FullName), _ => _.FullName);
+                var commonOldMethods = oldMethods.IntersectBy(newMethods.Select(_ => _.FullName), _ => _.FullName);
 
                 foreach (var newMethod in createdMethods)
                 {
@@ -215,14 +264,14 @@ namespace AssemblyComparer.Core
             }
             void CompareFields()
             {
-                var oldFields = oldType.Fields.ToList();
-                var newFields = newType.Fields.ToList();
+                var oldFields = oldType.Fields;
+                var newFields = newType.Fields;
 
-                var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name).ToList();
-                var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name).ToList();
+                var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name);
+                var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name);
 
-                var commonNewFields = newFields.IntersectBy(oldFields.Select(_ => _.Name), _ => _.Name).ToList();
-                var commonOldFields = oldFields.IntersectBy(newFields.Select(_ => _.Name), _ => _.Name).ToList();
+                var commonNewFields = newFields.IntersectBy(oldFields.Select(_ => _.Name), _ => _.Name);
+                var commonOldFields = oldFields.IntersectBy(newFields.Select(_ => _.Name), _ => _.Name);
 
                 foreach (var newField in createdFields)
                 {
@@ -257,13 +306,13 @@ namespace AssemblyComparer.Core
             }
             void CompareModifiers()
             {
-                var oldAttributes = oldType.Attributes.ToString();
-                var newAttributes = newType.Attributes.ToString();
+                var oldAttributes = BuildTypeDef(oldType);
+                var newAttributes = BuildTypeDef(newType);
                 if (oldAttributes != newAttributes)
                 {
-                    _differences.Add(new Difference<TypeAttributes>(
-                        oldType.Attributes,
-                        newType.Attributes,
+                    _differences.Add(new Difference<TypeDef>(
+                        oldType,
+                        newType,
                         DifferenceType.Modified,
                         SubjectType.Type,
                         oldAttributes,
@@ -275,6 +324,11 @@ namespace AssemblyComparer.Core
 
         private void CompareTwoProperties(PropertyDef oldProperty, PropertyDef newProperty)
         {
+            // TODO:
+            // Differentiate property diffs
+
+
+
             /*
             Difference<PropertyDef> diff = null;
 
@@ -314,14 +368,14 @@ namespace AssemblyComparer.Core
 
             void CompareAttributes()
             {
-                var oldAttributes = oldProperty.CustomAttributes.ToList();
-                var newAttributes = oldProperty.CustomAttributes.ToList();
+                var oldAttributes = oldProperty.CustomAttributes;
+                var newAttributes = oldProperty.CustomAttributes;
 
-                var createdAttributes = newAttributes.ExceptBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
-                var removedAttributes = oldAttributes.ExceptBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
+                var createdAttributes = newAttributes.ExceptBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
+                var removedAttributes = oldAttributes.ExceptBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
 
-                var commonNewAttributes = newAttributes.IntersectBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
-                var commonOldAttributes = oldAttributes.IntersectBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
+                var commonNewAttributes = newAttributes.IntersectBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
+                var commonOldAttributes = oldAttributes.IntersectBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
 
 
                 foreach (var createdAttribute in createdAttributes)
@@ -352,14 +406,14 @@ namespace AssemblyComparer.Core
                     // Item1 new
                     // Item2 old
 
-                    var oldFields = attributePair.Item1.Fields.Union(attributePair.Item1.Properties).ToList();
-                    var newFields = attributePair.Item2.Fields.Union(attributePair.Item2.Properties).ToList();
+                    var oldFields = attributePair.Item1.Fields.Union(attributePair.Item1.Properties);
+                    var newFields = attributePair.Item2.Fields.Union(attributePair.Item2.Properties);
 
-                    var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name).ToList();
-                    var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name).ToList();
+                    var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name);
+                    var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name);
 
-                    var commonNewFields = newFields.IntersectBy(oldFields.Select(_ => _.Name), _ => _.Name).ToList();
-                    var commonOldFields = oldFields.IntersectBy(newFields.Select(_ => _.Name), _ => _.Name).ToList();
+                    var commonNewFields = newFields.IntersectBy(oldFields.Select(_ => _.Name), _ => _.Name);
+                    var commonOldFields = oldFields.IntersectBy(newFields.Select(_ => _.Name), _ => _.Name);
 
                     // Check common attributes for value changes
                     foreach (var fieldPair in commonNewFields.Zip(commonOldFields, Tuple.Create))
@@ -432,14 +486,14 @@ namespace AssemblyComparer.Core
 
             void CompareAttributes()
             {
-                var oldAttributes = oldField.CustomAttributes.ToList();
-                var newAttributes = oldField.CustomAttributes.ToList();
+                var oldAttributes = oldField.CustomAttributes;
+                var newAttributes = oldField.CustomAttributes;
 
-                var createdAttributes = newAttributes.ExceptBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
-                var removedAttributes = oldAttributes.ExceptBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
+                var createdAttributes = newAttributes.ExceptBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
+                var removedAttributes = oldAttributes.ExceptBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
 
-                var commonNewAttributes = newAttributes.IntersectBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
-                var commonOldAttributes = oldAttributes.IntersectBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name).ToList();
+                var commonNewAttributes = newAttributes.IntersectBy(oldAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
+                var commonOldAttributes = oldAttributes.IntersectBy(newAttributes.Select(_ => _.AttributeType.Name), _ => _.AttributeType.Name);
 
 
                 foreach (var createdAttribute in createdAttributes)
@@ -470,14 +524,14 @@ namespace AssemblyComparer.Core
                     // Item1 new
                     // Item2 old
 
-                    var oldFields = attributePair.Item1.Fields.Union(attributePair.Item1.Properties).ToList();
-                    var newFields = attributePair.Item2.Fields.Union(attributePair.Item2.Properties).ToList();
+                    var oldFields = attributePair.Item1.Fields.Union(attributePair.Item1.Properties);
+                    var newFields = attributePair.Item2.Fields.Union(attributePair.Item2.Properties);
 
-                    var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name).ToList();
-                    var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name).ToList();
+                    var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name);
+                    var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name);
 
-                    var commonNewFields = newFields.IntersectBy(oldFields.Select(_ => _.Name), _ => _.Name).ToList();
-                    var commonOldFields = oldFields.IntersectBy(newFields.Select(_ => _.Name), _ => _.Name).ToList();
+                    var commonNewFields = newFields.IntersectBy(oldFields.Select(_ => _.Name), _ => _.Name);
+                    var commonOldFields = oldFields.IntersectBy(newFields.Select(_ => _.Name), _ => _.Name);
 
                     // Check common attributes for value changes
                     foreach (var fieldPair in commonNewFields.Zip(commonOldFields, Tuple.Create))
@@ -499,9 +553,111 @@ namespace AssemblyComparer.Core
                 }
             }
         }
-        private void CompareTwoMethods(MethodDef newField, MethodDef newMethod)
+        private void CompareTwoMethods(MethodDef oldMethod, MethodDef newMethod)
         {
+            // Technically those aren't going to trigger, because the sorting out by MethodDef#FullName
+            // should already have handled that
+            if (oldMethod.IsStatic != newMethod.IsStatic)
+            {
+                _differences.Add(new Difference<MethodDef>(
+                    oldMethod,
+                    newMethod,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    BuildMethodDef(oldMethod),
+                    BuildMethodDef(newMethod)
+                    ));
+            }
+            if (oldMethod.IsAbstract != newMethod.IsAbstract)
+            {
+                _differences.Add(new Difference<MethodDef>(
+                    oldMethod,
+                    newMethod,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    BuildMethodDef(oldMethod),
+                    BuildMethodDef(newMethod)
+                    ));
+            }
+            if (oldMethod.IsFinal != newMethod.IsFinal)
+            {
+                _differences.Add(new Difference<MethodDef>(
+                    oldMethod,
+                    newMethod,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    BuildMethodDef(oldMethod),
+                    BuildMethodDef(newMethod)
+                    ));
+            }
+            if (oldMethod.IsVirtual != newMethod.IsVirtual)
+            {
+                _differences.Add(new Difference<MethodDef>(
+                    oldMethod,
+                    newMethod,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    BuildMethodDef(oldMethod),
+                    BuildMethodDef(newMethod)
+                    ));
+            }
+            if (oldMethod.Parameters.Count != newMethod.Parameters.Count)
+            {
+                _differences.Add(new Difference<MethodDef>(
+                    oldMethod,
+                    newMethod,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    BuildMethodDef(oldMethod),
+                    BuildMethodDef(newMethod)
+                    ));
+            }
+            if (oldMethod.GenericParameters.Count != newMethod.GenericParameters.Count)
+            {
+                _differences.Add(new Difference<MethodDef>(
+                    oldMethod,
+                    newMethod,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    BuildMethodDef(oldMethod),
+                    BuildMethodDef(newMethod)
+                    ));
+            }
 
+            // Differentiate between method bodies
+            if (oldMethod.HasBody != newMethod.HasBody)
+            {
+                _differences.Add(new Difference<CilBody>(
+                    oldMethod.Body,
+                    newMethod.Body,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    $"{oldMethod.Body?.Instructions.Count ?? 0} instructions",
+                    $"{newMethod.Body?.Instructions.Count ?? 0} instructions"
+                    ));
+            }
+            else if (oldMethod.Body.Instructions.Count != newMethod.Body.Instructions.Count)
+            {
+                _differences.Add(new Difference<CilBody>(
+                    oldMethod.Body,
+                    oldMethod.Body,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    $"{oldMethod.Body?.Instructions.Count ?? 0} instructions",
+                    $"{newMethod.Body?.Instructions.Count ?? 0} instructions"
+                    ));
+            }
+            else if (!oldMethod.Body.Instructions.Select(_ => _.ToString()).SequenceEqual(newMethod.Body.Instructions.Select(_ => _.ToString())))
+            {
+                _differences.Add(new Difference<CilBody>(
+                    oldMethod.Body,
+                    oldMethod.Body,
+                    DifferenceType.Modified,
+                    SubjectType.Method,
+                    $"{oldMethod.Body?.Instructions.Count ?? 0} instructions",
+                    $"{newMethod.Body?.Instructions.Count ?? 0} instructions"
+                    ));
+            }
         }
 
         private static string BuildCustomAttributeDefinition(CustomAttribute attribute)
@@ -545,6 +701,12 @@ namespace AssemblyComparer.Core
             if (method.IsVirtual)
                 builder.Append("virtual ");
 
+            // As the ECMA specs define, "final" is an IL-modifier equal to C#'s "sealed"
+            // https://www.ecma-international.org/wp-content/uploads/ECMA-335_6th_edition_june_2012.pdf
+            // "To prevent overriding a virtual method use final (see §I.8.10.2) rather than relying on limited accessibility"
+            if (method.IsFinal)
+                builder.Append("sealed ");
+
             if (method.IsAbstract)
                 builder.Append("abstract ");
 
@@ -561,10 +723,57 @@ namespace AssemblyComparer.Core
             builder.Append("(");
             if (method.Parameters.Count > 0)
             {
-                string paramString = String.Join(",", method.Parameters.Select(_ => $"{_.Type.TypeName} {_.Name}"));
+                string paramString = String.Join(",",
+                    method.Parameters.Where(_ => !String.IsNullOrWhiteSpace(_.Name)) // "this" is passed with an empty name, sort it out.
+                    .Select(_ => $"{_.Type.TypeName} {_.Name}"));
                 builder.Append(paramString);
             }
             builder.Append(")");
+
+            return builder.ToString();
+        }
+        private static string BuildTypeDef(TypeDef type)
+        {
+            StringBuilder builder = new StringBuilder();
+
+            if (type.IsPublic)
+                builder.Append("public ");
+            if (type.IsNotPublic) // Likely private
+                builder.Append("private ");
+
+            // There is no IsStatic, but the CIL ECMA defines:
+            // https://www.ecma-international.org/wp-content/uploads/ECMA-335_6th_edition_june_2012.pdf
+            // "A type that is both abstract and sealed should have only static members,
+            // and serves as what some languages call a “namespace” or “static class”. end rationale"
+            // 
+            // There is however no such case, that a user could intentionally create an abstract-sealed class,
+            // so we're fine to assume, that if we find one, it is static.
+            // https://sharplab.io/#v2:C4LglgNgNAJiDUAfAAgZgAQEMBGBnYATpgMbDq4CmmEFM6yATOgCoAWYBdA3gLABQAXyA===
+            if (type.IsAbstract && type.IsSealed)
+                builder.Append("static ");
+            else if (type.IsAbstract)
+                builder.Append("abstract ");
+            else if (type.IsSealed)
+                builder.Append("sealed ");
+
+
+            if (type.IsClass)
+                builder.Append("class ");
+            else if (type.IsEnum)
+                builder.Append("enum ");
+            else if (type.IsInterface)
+                builder.Append("interface ");
+            else if (type.IsValueType)
+                builder.Append("struct ");
+
+
+            builder.Append(type.Name);
+
+            if (type.HasGenericParameters)
+            {
+                string genericParamString = String.Join(",", type.GenericParameters.Select(_ => _.Name));
+                builder.Append($"<{genericParamString}>");
+            }
 
             return builder.ToString();
         }

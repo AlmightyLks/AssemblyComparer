@@ -5,9 +5,7 @@ VisualStudioVersion = 17.3.32519.111
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AssemblyComparer.Core", "AssemblyComparer.Core\AssemblyComparer.Core.csproj", "{568C7497-5C81-466A-8A8F-4224646A048A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AssemblyComparer.Cli", "AssemblyComparer.Cli\AssemblyComparer.Cli.csproj", "{E62B4D72-E450-4ABB-BCB6-D6C52A730C96}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssemblyComparer.Tests", "AssemblyComparer.Tests\AssemblyComparer.Tests.csproj", "{E5C87D7C-068D-4D94-B84A-EAF6BDB234AC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AssemblyComparer.Tests", "AssemblyComparer.Tests\AssemblyComparer.Tests.csproj", "{E5C87D7C-068D-4D94-B84A-EAF6BDB234AC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -19,10 +17,6 @@ Global
 		{568C7497-5C81-466A-8A8F-4224646A048A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{568C7497-5C81-466A-8A8F-4224646A048A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{568C7497-5C81-466A-8A8F-4224646A048A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E62B4D72-E450-4ABB-BCB6-D6C52A730C96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E62B4D72-E450-4ABB-BCB6-D6C52A730C96}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E62B4D72-E450-4ABB-BCB6-D6C52A730C96}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E62B4D72-E450-4ABB-BCB6-D6C52A730C96}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E5C87D7C-068D-4D94-B84A-EAF6BDB234AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E5C87D7C-068D-4D94-B84A-EAF6BDB234AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E5C87D7C-068D-4D94-B84A-EAF6BDB234AC}.Release|Any CPU.ActiveCfg = Release|Any CPU

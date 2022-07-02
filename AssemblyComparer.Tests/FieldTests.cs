@@ -7,12 +7,12 @@ namespace AssemblyComparer.Tests
 {
     public class FieldTests
     {
-        private Comparer _comparer;
+        private Core.Comparator _comparer;
 
         [SetUp]
         public void Setup()
         {
-            _comparer = new Comparer();
+            _comparer = new Core.Comparator();
         }
 
         [Test]
@@ -106,7 +106,7 @@ namespace Foo
         {newFieldDef}
     }}
 }}");
-            var differences = _comparer.Compare(oldAssembly, newAssembly).ToList();
+            var differences = _comparer.Compare(oldAssembly, newAssembly);
 
             var diff = differences.Single() as Difference<FieldDef>;
             Assert.AreEqual(DifferenceType.Modified, diff.Type);

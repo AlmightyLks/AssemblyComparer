@@ -9,12 +9,12 @@ namespace AssemblyComparer.Tests
 {
     public class AssemblyTests
     {
-        private Comparer _comparer;
+        private Core.Comparator _comparer;
 
         [SetUp]
         public void Setup()
         {
-            _comparer = new Comparer();
+            _comparer = new Core.Comparator();
         }
 
         [Test]

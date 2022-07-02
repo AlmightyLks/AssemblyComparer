@@ -13,7 +13,7 @@ namespace AssemblyComparer.Tests
         internal static Stream CompileToStream(string code, string assemblyName = "Test", List<MetadataReference> references = null, CSharpCompilationOptions options = null)
         {
             references ??= new List<MetadataReference>();
-            options ??= new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true);
+            options ??= new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release, allowUnsafe: true);
 
             var syntaxTree = SyntaxFactory.ParseSyntaxTree(SourceText.From(code));
 
