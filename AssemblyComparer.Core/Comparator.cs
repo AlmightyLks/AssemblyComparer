@@ -502,7 +502,7 @@ namespace AssemblyComparer.Core
                         null,
                         createdAttribute,
                         DifferenceType.Created,
-                        SubjectType.Field,
+                        SubjectType.Attribute,
                         BuildCustomAttributeDefinition(createdAttribute),
                         null
                         ));
