@@ -194,10 +194,10 @@ namespace AssemblyComparer.Core
                         null,
                         newProperty,
                         DifferenceType.Created,
-                        SubjectType.Method,
+                        SubjectType.Property,
                         null,
                         newProperty.FullName
-                        )); 
+                        ));
                 }
                 foreach (var removedMethod in removedProperties)
                 {
@@ -205,7 +205,7 @@ namespace AssemblyComparer.Core
                         removedMethod,
                         null,
                         DifferenceType.Removed,
-                        SubjectType.Method,
+                        SubjectType.Property,
                         removedMethod.FullName,
                         null
                         ));
@@ -221,8 +221,8 @@ namespace AssemblyComparer.Core
             }
             void CompareMethods()
             {
-                var oldMethods = oldType.Methods;
-                var newMethods = newType.Methods;
+                var oldMethods = oldType.Methods.Where(_ => !_.IsRuntimeSpecialName && !_.IsSpecialName);
+                var newMethods = newType.Methods.Where(_ => !_.IsRuntimeSpecialName && !_.IsSpecialName);
 
                 // MethodDef#FullName includes whole method definition, so it will sort out parameter changes and alike already
                 var createdMethods = newMethods.ExceptBy(oldMethods.Select(_ => _.FullName), _ => _.FullName);
@@ -264,8 +264,9 @@ namespace AssemblyComparer.Core
             }
             void CompareFields()
             {
-                var oldFields = oldType.Fields;
-                var newFields = newType.Fields;
+                // Apparently compiler-generated backing fields are not special names, and thus cannot be filtered out that way
+                var oldFields = oldType.Fields.Where(_ => !_.IsRuntimeSpecialName && !_.IsSpecialName).Where(_ => !_.Name.EndsWith("k__BackingField"));
+                var newFields = newType.Fields.Where(_ => !_.IsRuntimeSpecialName && !_.IsSpecialName).Where(_ => !_.Name.EndsWith("k__BackingField"));
 
                 var createdFields = newFields.ExceptBy(oldFields.Select(_ => _.Name), _ => _.Name);
                 var removedFields = oldFields.ExceptBy(newFields.Select(_ => _.Name), _ => _.Name);
@@ -636,7 +637,7 @@ namespace AssemblyComparer.Core
                     $"{newMethod.Body?.Instructions.Count ?? 0} instructions"
                     ));
             }
-            else if (oldMethod.Body.Instructions.Count != newMethod.Body.Instructions.Count)
+            else if (oldMethod.Body?.Instructions.Count != newMethod.Body?.Instructions.Count)
             {
                 _differences.Add(new Difference<CilBody>(
                     oldMethod.Body,
@@ -647,7 +648,7 @@ namespace AssemblyComparer.Core
                     $"{newMethod.Body?.Instructions.Count ?? 0} instructions"
                     ));
             }
-            else if (!oldMethod.Body.Instructions.Select(_ => _.ToString()).SequenceEqual(newMethod.Body.Instructions.Select(_ => _.ToString())))
+            else if ((oldMethod.HasBody && newMethod.HasBody) && !oldMethod.Body.Instructions.Select(_ => _.ToString()).SequenceEqual(newMethod.Body.Instructions.Select(_ => _.ToString())))
             {
                 _differences.Add(new Difference<CilBody>(
                     oldMethod.Body,
